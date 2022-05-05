@@ -3,7 +3,6 @@
 #include <GL/glew.h> // extensions manager
 #include <GL/freeglut.h> //GLUT - OpenGL Utility Library - API for managing the window system, as well as event handling, input/output control
 #include <glm/glm.hpp>	//#include "math_3d.h" - vector
-#pragma once
 
 struct m_persProj
 {

@@ -83,7 +83,7 @@ private:
 	float Scale;
 	Texture* pTexture;
 	LightingTechnique* pEffect;
-	DirectionLight directionalLight;
+	DirectionalLight directionalLight;
 
 public:
 	Main()
@@ -91,7 +91,7 @@ public:
 		Scale = 0.0f;
 		pTexture = nullptr;
 		pEffect = nullptr;
-		directionalLight = { {0.9f, 0.9f, 0.9f}, 0.5f };
+		//directionalLight = { {0.9f, 0.9f, 0.9f}, 0.5f };
 		directionalLight.Color = glm::vec3(1.0f, 1.0f, 1.0f);
 		directionalLight.AmbientIntensity = 0.0f;
 		directionalLight.DiffuseIntensity = 0.75f;
@@ -130,7 +130,25 @@ public:
 		//glClear(GL_COLOR_BUFFER_BIT); //clearing the frame buffer using the color specified above
 
 		Scale += 0.1f;
-		directionalLight.AmbientIntensity += 0.0001f;
+		//directionalLight.AmbientIntensity += 0.0001f;
+
+		PointLight pl[3];
+		pl[0].DiffuseIntensity = 0.5f;
+		pl[0].Color = glm::vec3(1.0f, 0.0f, 0.0f);
+		pl[0].Position = glm::vec3(sinf(Scale) * 10, 1.0f, cosf(Scale) * 10);
+		pl[0].Attenuation.Linear = 0.1f;
+
+		pl[1].DiffuseIntensity = 0.5f;
+		pl[1].Color = glm::vec3(0.0f, 1.0f, 0.0f);
+		pl[1].Position = glm::vec3(sinf(Scale + 2.1f) * 10, 1.0f, cosf(Scale + 2.1f) * 10);
+		pl[1].Attenuation.Linear = 0.1f;
+
+		pl[2].DiffuseIntensity = 0.5f;
+		pl[2].Color = glm::vec3(0.0f, 0.0f, 1.0f);
+		pl[2].Position = glm::vec3(sinf(Scale + 4.2f) * 10, 1.0f, cosf(Scale + 4.2f) * 10);
+		pl[2].Attenuation.Linear = 0.1f;
+
+		pEffect->SetPointLights(3, pl);
 
 		Pipeline p;
 

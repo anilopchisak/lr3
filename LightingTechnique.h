@@ -16,14 +16,17 @@ static const char* vertex = R"(
 
 	uniform mat4 gWorld;
 	uniform mat4 gWVP;
+
 	out vec2 TexCoord0;
 	out vec3 Normal0;
+	out vec3 WorldPos0;
 
 	void main()
 	{
 		gl_Position = gWVP * vec4(4 * Pos.x, 4 * Pos.y, Pos.z, 1.0);
 		TexCoord0 = TexCoord; 
 		Normal0 = (gWorld * vec4(Normal, 0.0)).xyz;
+		WorldPos0 = (gWorld * vec4(Pos, 1.0)).xyz;
 	})";
 
 static const char* fragment = R"(
@@ -31,6 +34,8 @@ static const char* fragment = R"(
 
 	in vec2 TexCoord0;
 	in vec3 Normal0; 
+	in vec3 WorldPos0;
+
 	out vec4 FragColor;
 
 	struct DirectionalLight
@@ -44,28 +49,44 @@ static const char* fragment = R"(
 	uniform sampler2D gSampler;
 	uniform DirectionalLight gDirectionalLight;  
 
+	uniform vec3 gEyeWorldPos;
+	uniform float gMatSpecularIntensity;
+	uniform float gSpecularPower;
+
 	void main()
 	{
-    vec4 AmbientColor = vec4(gDirectionalLight.Color, 1.0f) *
-                        gDirectionalLight.AmbientIntensity;
+		vec4 AmbientColor = vec4(gDirectionalLight.Color, 1.0f) *
+                    gDirectionalLight.AmbientIntensity;
 
-    float DiffuseFactor = dot(normalize(Normal0), -gDirectionalLight.Direction);
+		vec3 LightDirection = -gDirectionalLight.Direction;
+		vec3 Normal = normalize(Normal0);
+	
+		float DiffuseFactor = dot(Normal, LightDirection);
 
-    vec4 DiffuseColor;
+		vec4 DiffuseColor  = vec4(0, 0, 0, 0);
+		vec4 SpecularColor = vec4(0, 0, 0, 0);
 
-    if (DiffuseFactor > 0)
-	{
-        DiffuseColor = vec4(gDirectionalLight.Color, 1.0f) *
-                       gDirectionalLight.DiffuseIntensity *
-                       DiffuseFactor;
-    }
-    else
-	{
-        DiffuseColor = vec4(0,0,0,0);
-    }
+		if (DiffuseFactor > 0)
+		{
+			DiffuseColor = vec4(gDirectionalLight.Color, 1.0f) *
+						   gDirectionalLight.DiffuseIntensity *
+						   DiffuseFactor;
 
-    FragColor = texture2D(gSampler, TexCoord0.xy) *
-                (AmbientColor + DiffuseColor); 
+			vec3 VertexToEye = normalize(gEyeWorldPos - WorldPos0);
+			vec3 LightReflect = normalize(reflect(gDirectionalLight.Direction, Normal));
+			float SpecularFactor = dot(VertexToEye, LightReflect);
+			SpecularFactor = pow(SpecularFactor, gSpecularPower);
+
+			if (SpecularFactor > 0)
+			{
+				SpecularColor = vec4(gDirectionalLight.Color, 1.0f) *
+								gMatSpecularIntensity *
+								SpecularFactor;
+			}
+		}
+
+		FragColor = texture2D(gSampler, TexCoord0.xy) *
+					(AmbientColor + DiffuseColor + SpecularColor);  
 	})";
 
 struct DirectionLight
@@ -91,7 +112,12 @@ private:
 	GLuint gWorldLocation;
 	GLuint gSamplerLocation;
 	GLuint gWVPLocation;
+
 	DirLightLocation dirLightLocation;
+
+	GLuint eyeWorldPosition;
+	GLuint matSpecularIntensityLocation;
+	GLuint matSpecularPowerLocation;
 
 public:
 	LightingTechnique() { }
@@ -104,10 +130,15 @@ public:
 		gWorldLocation = GetUniformLocation("gWorld");
 		gWVPLocation = GetUniformLocation("gWVP");
 		gSamplerLocation = GetUniformLocation("gSampler");
+
 		dirLightLocation.Color = GetUniformLocation("gDirectionalLight.Color");
 		dirLightLocation.AmbientIntensity = GetUniformLocation("gDirectionalLight.AmbientIntensity");
 		dirLightLocation.Direction = GetUniformLocation("gDirectionalLight.Direction");
 		dirLightLocation.DiffuseIntensity = GetUniformLocation("gDirectionalLight.DiffuseIntensity");
+
+		eyeWorldPosition = GetUniformLocation("gEyeWorldPos");
+		matSpecularIntensityLocation = GetUniformLocation("gMatSpecularIntensity");
+		matSpecularPowerLocation = GetUniformLocation("gSpecularPower");
 
 		return true;
 	}
@@ -125,6 +156,21 @@ public:
 	void SetTextureUnit(unsigned int TextureUnit)
 	{
 		glUniform1i(gSamplerLocation, TextureUnit);
+	}
+
+	void SetMatSpecularIntensity(float Intensity)
+	{
+		glUniform1f(matSpecularIntensityLocation, Intensity);
+	}
+
+	void SetMatSpecularPower(float Power)
+	{
+		glUniform1f(matSpecularPowerLocation, Power);
+	}
+
+	void SetEyeWorldPos(const glm::vec3& EyeWorldPos)
+	{
+		glUniform3f(eyeWorldPosition, EyeWorldPos.x, EyeWorldPos.y, EyeWorldPos.z);
 	}
 
 	void SetDirectionalLight(DirectionLight& Light)

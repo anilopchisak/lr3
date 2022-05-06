@@ -142,10 +142,16 @@ public:
 		glm::vec3 CameraTarget(0.0f, 0.0f, 2.0f);
 		glm::vec3 CameraUp(0.0f, 1.0f, 0.0f);
 		p.SetCamera(CameraPos, CameraTarget, CameraUp);
+
 		p.SetPerspectiveProj(60.0f, WINDOW_WIDTH, WINDOW_HEIGHT, 1.0f, 100.0f);
+
 		pEffect->SetWVP(p.GetWVPTrans());
 		pEffect->SetWorld(p.GetWorldTrans());
 		pEffect->SetDirectionalLight(directionalLight);
+
+		pEffect->SetEyeWorldPos(CameraPos);
+		pEffect->SetMatSpecularIntensity(1.0f);
+		pEffect->SetMatSpecularPower(32);
 
 		// Rendering
 		glEnableVertexAttribArray(0);

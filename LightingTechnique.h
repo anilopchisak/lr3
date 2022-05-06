@@ -7,7 +7,8 @@
 #include "Technique.h"
 #include "Pipeline.h"
 
-#define MAX_POINT_LIGHTS 3
+const int MAX_POINT_LIGHTS = 3;
+const int MAX_SPOT_LIGHTS = 2;
 
 static const char* vertex = R"(
 	#version 330 core
@@ -34,7 +35,8 @@ static const char* vertex = R"(
 static const char* fragment = R"(
 	#version 330                                                                        
 																						
-	const int MAX_POINT_LIGHTS = 3;                                                     
+	const int MAX_POINT_LIGHTS = 3;
+	const int MAX_SPOT_LIGHTS = 2;                                                     
 																						
 	in vec2 TexCoord0;                                                                  
 	in vec3 Normal0;                                                                    
@@ -67,11 +69,20 @@ static const char* fragment = R"(
 		BaseLight Base;                                                                  
 		vec3 Position;                                                                          
 		Attenuation Atten;                                                                      
-	};                                                                                          
+	}; 
+
+	struct SpotLight                                                                            
+	{                                                                                           
+		PointLight Base;                                                                 
+		vec3 Direction;                                                                         
+		float Cutoff;                                                                           
+	};                                                                                         
 																								
-	uniform int gNumPointLights;                                                                
+	uniform int gNumPointLights;                
+	uniform int gNumSpotLights;                                                
 	uniform DirectionalLight gDirectionalLight;                                                 
-	uniform PointLight gPointLights[MAX_POINT_LIGHTS];                                          
+	uniform PointLight gPointLights[MAX_POINT_LIGHTS];           
+	uniform SpotLight gSpotLights[MAX_SPOT_LIGHTS];                               
 	uniform sampler2D gSampler;                                                                 
 	uniform vec3 gEyeWorldPos;                                                                  
 	uniform float gMatSpecularIntensity;                                                        
@@ -108,29 +119,51 @@ static const char* fragment = R"(
 		return CalcLightInternal(gDirectionalLight.Base, gDirectionalLight.Direction, Normal); 
 	}                                                                                           
 																								
-	vec4 CalcPointLight(int Index, vec3 Normal)                                                 
+	vec4 CalcPointLight(PointLight l, vec3 Normal)                                       
 	{                                                                                           
-		vec3 LightDirection = WorldPos0 - gPointLights[Index].Position;                         
+		vec3 LightDirection = WorldPos0 - l.Position;                                           
 		float Distance = length(LightDirection);                                                
 		LightDirection = normalize(LightDirection);                                             
 																								
-		vec4 Color = CalcLightInternal(gPointLights[Index].Base, LightDirection, Normal);       
-		float Attenuation =  gPointLights[Index].Atten.Constant +                               
-							 gPointLights[Index].Atten.Linear * Distance +                      
-							 gPointLights[Index].Atten.Exp * Distance * Distance;               
+		vec4 Color = CalcLightInternal(l.Base, LightDirection, Normal);                         
+		float Attenuation =  l.Atten.Constant +                                                 
+							 l.Atten.Linear * Distance +                                        
+							 l.Atten.Exp * Distance * Distance;                                 
 																								
 		return Color / Attenuation;                                                             
-	}                                                                                           
+	}      
+
+	vec4 CalcSpotLight( SpotLight l, vec3 Normal)                                         
+	{                                                                                           
+		vec3 LightToPixel = normalize(WorldPos0 - l.Base.Position);                             
+		float SpotFactor = dot(LightToPixel, l.Direction);                                      
+																								
+		if (SpotFactor > l.Cutoff) 
+		{                                                            
+			vec4 Color = CalcPointLight(l.Base, Normal);                                        
+			return Color * (1.0 - (1.0 - SpotFactor) * 1.0/(1.0 - l.Cutoff));                   
+		}                                                                                       
+		else
+		 {                                                                                  
+			return vec4(0,0,0,0);                                                               
+		}                                                                                       
+	}                                                                                        
 																								
 	void main()                                                                                 
 	{                                                                                           
 		vec3 Normal = normalize(Normal0);                                                       
 		vec4 TotalLight = CalcDirectionalLight(Normal);                                         
 																								
-		for (int i = 0 ; i < gNumPointLights ; i++) {                                           
-			TotalLight += CalcPointLight(i, Normal);                                            
+		for (int i = 0 ; i < gNumPointLights ; i++) 
+		{                                           
+			TotalLight += CalcPointLight(gPointLights[i], Normal);                                            
 		}                                                                                       
-																								
+			
+		for (int i = 0 ; i < gNumSpotLights ; i++)
+		{                                            
+				TotalLight += CalcSpotLight(gSpotLights[i], Normal);                                
+		}       
+																					
 		FragColor = texture2D(gSampler, TexCoord0.xy) * TotalLight;
 
 	})";
@@ -175,7 +208,17 @@ struct PointLight : public BaseLight
 	}
 };
 
+struct SpotLight : public PointLight
+{
+	glm::vec3 Direction;
+	float Cutoff;
 
+	SpotLight()
+	{
+		Direction = glm::vec3(0.0f, 0.0f, 0.0f);
+		Cutoff = 0.0f;
+	}
+};
 
 class LightingTechnique : public Technique
 {
@@ -194,6 +237,7 @@ private:
 	GLuint matSpecularPowerLocation;
 
 	GLuint numPointLightsLocation;
+	GLuint numSpotLightsLocation;
 
 	struct 
 	{
@@ -208,6 +252,20 @@ private:
             GLuint Exp;
         } Atten;
     } pointLightsLocation[MAX_POINT_LIGHTS];
+
+	struct {
+		GLuint Color;
+		GLuint AmbientIntensity;
+		GLuint DiffuseIntensity;
+		GLuint Position;
+		GLuint Direction;
+		GLuint Cutoff;
+		struct {
+			GLuint Constant;
+			GLuint Linear;
+			GLuint Exp;
+		} Atten;
+	} spotLightsLocation[MAX_SPOT_LIGHTS];
 
 public:
 	LightingTechnique() { }
@@ -231,8 +289,10 @@ public:
 		matSpecularPowerLocation = GetUniformLocation("gSpecularPower");
 
 		numPointLightsLocation = GetUniformLocation("gNumPointLights");
+		numSpotLightsLocation = GetUniformLocation("gNumSpotLights");
 
-		for (unsigned int i = 0; i < MAX_POINT_LIGHTS; i++) {
+		for (unsigned int i = 0; i < MAX_POINT_LIGHTS; i++) 
+		{
 			char Name[128];
 			memset(Name, 0, sizeof(Name));
 			snprintf(Name, sizeof(Name), "gPointLights[%d].Base.Color", i);
@@ -255,6 +315,37 @@ public:
 
 			snprintf(Name, sizeof(Name), "gPointLights[%d].Atten.Exp", i);
 			pointLightsLocation[i].Atten.Exp = GetUniformLocation(Name);
+		}
+		for (unsigned int i = 0; i < MAX_SPOT_LIGHTS; i++) 
+		{
+			char Name[128];
+			memset(Name, 0, sizeof(Name));
+			snprintf(Name, sizeof(Name), "gSpotLights[%d].Base.Base.Color", i);
+			spotLightsLocation[i].Color = GetUniformLocation(Name);
+
+			snprintf(Name, sizeof(Name), "gSpotLights[%d].Base.Base.AmbientIntensity", i);
+			spotLightsLocation[i].AmbientIntensity = GetUniformLocation(Name);
+
+			snprintf(Name, sizeof(Name), "gSpotLights[%d].Base.Position", i);
+			spotLightsLocation[i].Position = GetUniformLocation(Name);
+
+			snprintf(Name, sizeof(Name), "gSpotLights[%d].Direction", i);
+			spotLightsLocation[i].Direction = GetUniformLocation(Name);
+
+			snprintf(Name, sizeof(Name), "gSpotLights[%d].Cutoff", i);
+			spotLightsLocation[i].Cutoff = GetUniformLocation(Name);
+
+			snprintf(Name, sizeof(Name), "gSpotLights[%d].Base.Base.DiffuseIntensity", i);
+			spotLightsLocation[i].DiffuseIntensity = GetUniformLocation(Name);
+
+			snprintf(Name, sizeof(Name), "gSpotLights[%d].Base.Atten.Constant", i);
+			spotLightsLocation[i].Atten.Constant = GetUniformLocation(Name);
+
+			snprintf(Name, sizeof(Name), "gSpotLights[%d].Base.Atten.Linear", i);
+			spotLightsLocation[i].Atten.Linear = GetUniformLocation(Name);
+
+			snprintf(Name, sizeof(Name), "gSpotLights[%d].Base.Atten.Exp", i);
+			spotLightsLocation[i].Atten.Exp = GetUniformLocation(Name);
 		}
 
 		return true;
@@ -312,6 +403,26 @@ public:
 			glUniform1f(pointLightsLocation[i].Atten.Constant, pLights[i].Attenuation.Constant);
 			glUniform1f(pointLightsLocation[i].Atten.Linear, pLights[i].Attenuation.Linear);
 			glUniform1f(pointLightsLocation[i].Atten.Exp, pLights[i].Attenuation.Exp);
+		}
+	}
+
+	void SetSpotLights(unsigned int NumLights, const SpotLight* pLights)
+	{
+		glUniform1i(numSpotLightsLocation, NumLights);
+
+		for (unsigned int i = 0; i < NumLights; i++)
+		{
+			glUniform3f(spotLightsLocation[i].Color, pLights[i].Color.x, pLights[i].Color.y, pLights[i].Color.z);
+			glUniform1f(spotLightsLocation[i].AmbientIntensity, pLights[i].AmbientIntensity);
+			glUniform1f(spotLightsLocation[i].DiffuseIntensity, pLights[i].DiffuseIntensity);
+			glUniform3f(spotLightsLocation[i].Position, pLights[i].Position.x, pLights[i].Position.y, pLights[i].Position.z);
+			glm::vec3 Direction = pLights[i].Direction;
+			glm::normalize(Direction);
+			glUniform3f(spotLightsLocation[i].Direction, Direction.x, Direction.y, Direction.z);
+			glUniform1f(spotLightsLocation[i].Cutoff, cosf(glm::radians(pLights[i].Cutoff)));
+			glUniform1f(spotLightsLocation[i].Atten.Constant, pLights[i].Attenuation.Constant);
+			glUniform1f(spotLightsLocation[i].Atten.Linear, pLights[i].Attenuation.Linear);
+			glUniform1f(spotLightsLocation[i].Atten.Exp, pLights[i].Attenuation.Exp);
 		}
 	}
 };

@@ -91,7 +91,6 @@ public:
 		Scale = 0.0f;
 		pTexture = nullptr;
 		pEffect = nullptr;
-		//directionalLight = { {0.9f, 0.9f, 0.9f}, 0.5f };
 		directionalLight.Color = glm::vec3(1.0f, 1.0f, 1.0f);
 		directionalLight.AmbientIntensity = 0.0f;
 		directionalLight.DiffuseIntensity = 0.75f;
@@ -132,6 +131,36 @@ public:
 		Scale += 0.1f;
 		//directionalLight.AmbientIntensity += 0.0001f;
 
+		Pipeline p;
+
+		p.Scale(0.1f, 0.1f, 0.1f);
+		p.WorldPos(0.0f, 0.0f, 3.0f);
+		p.Rotate(0, Scale, 0);
+
+		glm::vec3 CameraPos(0.0f, 0.0f, -3.0f);
+		glm::vec3 CameraTarget(0.0f, 0.0f, 2.0f);
+		glm::vec3 CameraUp(0.0f, 1.0f, 0.0f);
+		p.SetCamera(CameraPos, CameraTarget, CameraUp);
+
+		p.SetPerspectiveProj(60.0f, WINDOW_WIDTH, WINDOW_HEIGHT, 1.0f, 100.0f);
+
+		SpotLight sl[2];
+		sl[0].DiffuseIntensity = 15.0f;
+		sl[0].Color = glm::vec3(1.0f, 1.0f, 0.7f);
+		sl[0].Position = glm::vec3(-0.0f, -1.9f, -0.0f);
+		sl[0].Direction = glm::vec3(sinf(Scale), 0.0f, cosf(Scale));
+		sl[0].Attenuation.Linear = 0.1f;
+		sl[0].Cutoff = 20.0f;
+
+		sl[1].DiffuseIntensity = 5.0f;
+		sl[1].Color = glm::vec3(0.0f, 1.0f, 1.0f);
+		sl[1].Position = CameraPos;
+		sl[1].Direction = CameraTarget;
+		sl[1].Attenuation.Linear = 0.1f;
+		sl[1].Cutoff = 10.0f;
+
+		pEffect->SetSpotLights(2, sl);
+
 		PointLight pl[3];
 		pl[0].DiffuseIntensity = 0.5f;
 		pl[0].Color = glm::vec3(1.0f, 0.0f, 0.0f);
@@ -149,19 +178,6 @@ public:
 		pl[2].Attenuation.Linear = 0.1f;
 
 		pEffect->SetPointLights(3, pl);
-
-		Pipeline p;
-
-		p.Scale(0.1f, 0.1f, 0.1f);
-		p.WorldPos(0.0f, 0.0f, 3.0f);
-		p.Rotate(0, Scale, 0);
-
-		glm::vec3 CameraPos(0.0f, 0.0f, -3.0f);
-		glm::vec3 CameraTarget(0.0f, 0.0f, 2.0f);
-		glm::vec3 CameraUp(0.0f, 1.0f, 0.0f);
-		p.SetCamera(CameraPos, CameraTarget, CameraUp);
-
-		p.SetPerspectiveProj(60.0f, WINDOW_WIDTH, WINDOW_HEIGHT, 1.0f, 100.0f);
 
 		pEffect->SetWVP(p.GetWVPTrans());
 		pEffect->SetWorld(p.GetWorldTrans());
@@ -205,7 +221,8 @@ private:
 
 	void CalcNormals(const unsigned int* pIndices, unsigned int IndexCount, Vertex* pVertices, unsigned int VertexCount) 
 	{
-		for (unsigned int i = 0; i < IndexCount; i += 3) {
+		for (unsigned int i = 0; i < IndexCount; i += 3) 
+		{
 			unsigned int Index0 = pIndices[i];
 			unsigned int Index1 = pIndices[i + 1];
 			unsigned int Index2 = pIndices[i + 2];
@@ -219,7 +236,8 @@ private:
 			pVertices[Index2].m_normal += Normal;
 		}
 
-		for (unsigned int i = 0; i < VertexCount; i++) {
+		for (unsigned int i = 0; i < VertexCount; i++) 
+		{
 			glm::normalize(pVertices[i].m_normal);
 		}
 	}

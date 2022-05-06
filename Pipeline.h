@@ -25,7 +25,8 @@ protected:
 	glm::vec3 m_scale;
 	glm::vec3 m_worldPos;
 	glm::vec3 m_rotateInfo;
-	glm::mat4 m_transformation;
+	glm::mat4 WorldTransformation;
+	glm::mat4 WVPTransformation;
 	m_camera camera;
 	m_persProj persproj;
 public:
@@ -35,7 +36,8 @@ public:
 		m_scale = glm::vec3(1.0f, 1.0f, 1.0f);
 		m_worldPos = glm::vec3(0.0f, 0.0f, 0.0f);
 		m_rotateInfo = glm::vec3(0.0f, 0.0f, 0.0f);
-		m_transformation = glm::mat4{ 1.0f };
+		WorldTransformation = glm::mat4{ 1.0f };
+		WVPTransformation = glm::mat4{ 1.0f };
 	}
 
 	void Scale(float ScaleX, float ScaleY, float ScaleZ)
@@ -75,18 +77,29 @@ public:
 		camera.Up = Up;
 	}
 
-	glm::mat4* GetTrans()
+	glm::mat4* GetWorldTrans()
 	{
-		glm::mat4 ScaleTrans, RotateTrans, TranslationTrans, PersProjTrans, CameraTranslationTrans, CameraRotateTrans;
+		glm::mat4 ScaleTrans, RotateTrans, TranslationTrans;
 
 		ScaleTrans = InitScaleTransform(m_scale.x, m_scale.y, m_scale.z);
 		RotateTrans = InitRotateTransform(m_rotateInfo.x, m_rotateInfo.y, m_rotateInfo.z);
 		TranslationTrans = InitTranslationTransform(m_worldPos.x, m_worldPos.y, m_worldPos.z);
+		
+		WVPTransformation = ScaleTrans * RotateTrans * TranslationTrans;
+		return &WVPTransformation;
+	};
+
+	glm::mat4* GetWVPTrans()
+	{
+		GetWorldTrans();
+		glm::mat4 PersProjTrans, CameraTranslationTrans, CameraRotateTrans;
+
 		PersProjTrans = InitPerspectiveProj(persproj.Width, persproj.Height, persproj.zNear, persproj.zFar, persproj.FOV);
 		CameraTranslationTrans = InitTranslationTransform(-camera.Pos.x, -camera.Pos.y, -camera.Pos.z);
 		CameraRotateTrans = InitCameraTransform(camera.Target, camera.Up);
-		m_transformation = ScaleTrans * RotateTrans * TranslationTrans * CameraTranslationTrans * CameraRotateTrans * PersProjTrans;
-		return &m_transformation;
+
+		WorldTransformation = WVPTransformation * CameraTranslationTrans * CameraRotateTrans * PersProjTrans;
+		return &WorldTransformation;
 	};
 
 protected:

@@ -10,6 +10,7 @@
 const int MAX_POINT_LIGHTS = 3;
 const int MAX_SPOT_LIGHTS = 2;
 
+// обрабатывать позицию и координаты текстур.
 static const char* vertex = R"(
 	#version 330 core
 
@@ -26,12 +27,13 @@ static const char* vertex = R"(
 
 	void main()
 	{
-		gl_Position = gWVP * vec4(4 * Position.x, 4 * Position.y, Position.z, 1.0);
+		gl_Position = gWVP * vec4(Position, 1.0);
 		TexCoord0 = TexCoord; 
 		Normal0 = (gWorld * vec4(Normal, 0.0)).xyz;
 		WorldPos0 = (gWorld * vec4(Position, 1.0)).xyz;
 	})";
 
+// обрабатывает детали
 static const char* fragment = R"(
 	#version 330                                                                        
 																						
@@ -87,7 +89,7 @@ static const char* fragment = R"(
 	uniform vec3 gEyeWorldPos;                                                                  
 	uniform float gMatSpecularIntensity;                                                        
 	uniform float gSpecularPower;                                                               
-																								
+			//рассчет света																					
 	vec4 CalcLightInternal(BaseLight Light, vec3 LightDirection, vec3 Normal)            
 	{                                                                                           
 		vec4 AmbientColor = vec4(Light.Color, 1.0f) * Light.AmbientIntensity;                   
@@ -146,7 +148,7 @@ static const char* fragment = R"(
 		else
 		 {                                                                                  
 			return vec4(0,0,0,0);                                                               
-		}                                                                                       
+	   	}                                                                                       
 	}                                                                                        
 																								
 	void main()                                                                                 
@@ -171,8 +173,8 @@ static const char* fragment = R"(
 struct BaseLight
 {
 	glm::vec3 Color;
-	float AmbientIntensity;
-	float DiffuseIntensity;
+	float AmbientIntensity; // яроксть пирамиды
+	float DiffuseIntensity; // рассеянный свет тоже фон
 	BaseLight()
 	{
 		Color = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -186,7 +188,7 @@ struct DirectionalLight : public BaseLight
 	glm::vec3 Direction;
 	DirectionalLight()
 	{
-		Direction = glm::vec3(0.0f, 0.0f, 0.0f);
+		Direction = glm::vec3(0.0f, 0.0f, 0.0f); // 
 	}
 };
 
@@ -223,7 +225,7 @@ struct SpotLight : public PointLight
 class LightingTechnique : public Technique
 {
 private:
-	GLuint gWorldLocation;
+	GLuint gWorldLocation; // используется для передачи мировой позиции вершины в фрагментный шейдер и для преобразования нормали
 	GLuint gSamplerLocation;
 	GLuint gWVPLocation;
 
@@ -232,12 +234,12 @@ private:
 	GLuint dirLightDirection;
 	GLuint dirLightDiffuseIntensity;
 
-	GLuint eyeWorldPosition;
-	GLuint matSpecularIntensityLocation;
-	GLuint matSpecularPowerLocation;
+	GLuint eyeWorldPosition; // позиция глаза
+	GLuint matSpecularIntensityLocation; // интенсивность отражения
+	GLuint matSpecularPowerLocation; // коэффициент отражения материала
 
 	GLuint numPointLightsLocation;
-	GLuint numSpotLightsLocation;
+	GLuint numSpotLightsLocation; // передаем количество прожекторов
 
 	struct 
 	{
@@ -250,7 +252,7 @@ private:
             GLuint Constant;
             GLuint Linear;
             GLuint Exp;
-        } Atten;
+        } Atten; 
     } pointLightsLocation[MAX_POINT_LIGHTS];
 
 	struct {
@@ -275,7 +277,7 @@ public:
 		if (!Technique::Init()) return false;
 		if (!createShaders(vertex, fragment)) return false;
 
-		gWorldLocation = GetUniformLocation("gWorld");
+		gWorldLocation = GetUniformLocation("gWorld"); // используется для передачи мировой позиции вершины в фрагментный шейдер и для преобразования нормали
 		gWVPLocation = GetUniformLocation("gWVP");
 		gSamplerLocation = GetUniformLocation("gSampler");
 
@@ -288,8 +290,8 @@ public:
 		matSpecularIntensityLocation = GetUniformLocation("gMatSpecularIntensity");
 		matSpecularPowerLocation = GetUniformLocation("gSpecularPower");
 
-		numPointLightsLocation = GetUniformLocation("gNumPointLights");
-		numSpotLightsLocation = GetUniformLocation("gNumSpotLights");
+		numPointLightsLocation = GetUniformLocation("gNumPointLights"); 
+		numSpotLightsLocation = GetUniformLocation("gNumSpotLights"); // передаем количество прожекторов
 
 		for (unsigned int i = 0; i < MAX_POINT_LIGHTS; i++) 
 		{
@@ -406,7 +408,7 @@ public:
 		}
 	}
 
-	void SetSpotLights(unsigned int NumLights, const SpotLight* pLights)
+	void SetSpotLights(unsigned int NumLights, const SpotLight* pLights) // обновляет программу шейдера массивом структур SpotLight
 	{
 		glUniform1i(numSpotLightsLocation, NumLights);
 

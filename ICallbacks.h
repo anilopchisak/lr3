@@ -10,5 +10,6 @@ class ICallbacks
 public:
 	virtual void RenderSceneCB() = 0;
 	virtual void IdleCB() = 0;
+	virtual void KeyboardCB(unsigned char key, int x, int y) = 0;
 };
 
